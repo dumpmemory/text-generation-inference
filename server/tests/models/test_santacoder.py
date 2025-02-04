@@ -1,13 +1,12 @@
 import pytest
 
-from text_generation.pb import generate_pb2
-from text_generation.models.causal_lm import CausalLMBatch
-from text_generation.models.santacoder import SantaCoder
+from text_generation_server.pb import generate_pb2
+from text_generation_server.models.causal_lm import CausalLMBatch, CausalLM
 
 
 @pytest.fixture(scope="session")
 def default_santacoder():
-    return SantaCoder("bigcode/santacoder")
+    return CausalLM.fallback(model_id="bigcode/santacoder")
 
 
 @pytest.fixture
@@ -15,7 +14,9 @@ def default_pb_request(default_pb_parameters, default_pb_stop_parameters):
     return generate_pb2.Request(
         id=0,
         inputs="def",
-        input_length=1,
+        input_chunks=generate_pb2.Input(chunks=[generate_pb2.InputChunk(text="def")]),
+        prefill_logprobs=True,
+        truncate=100,
         parameters=default_pb_parameters,
         stopping_parameters=default_pb_stop_parameters,
     )
@@ -31,7 +32,15 @@ def default_fim_pb_request(default_pb_parameters, default_pb_stop_parameters):
     return generate_pb2.Request(
         id=0,
         inputs="<fim-prefix>def<fim-suffix>world<fim-middle>",
-        input_length=5,
+        input_chunks=generate_pb2.Input(
+            chunks=[
+                generate_pb2.InputChunk(
+                    text="<fim-prefix>def<fim-suffix>world<fim-middle>"
+                )
+            ]
+        ),
+        prefill_logprobs=True,
+        truncate=100,
         parameters=default_pb_parameters,
         stopping_parameters=default_pb_stop_parameters,
     )
@@ -45,19 +54,22 @@ def default_fim_pb_batch(default_fim_pb_request):
 @pytest.mark.skip
 def test_santacoder_generate_token_completion(default_santacoder, default_pb_batch):
     batch = CausalLMBatch.from_pb(
-        default_pb_batch, default_santacoder.tokenizer, default_santacoder.device
+        default_pb_batch,
+        default_santacoder.tokenizer,
+        default_santacoder.dtype,
+        default_santacoder.device,
     )
     next_batch = batch
 
     for _ in range(batch.stopping_criterias[0].max_new_tokens - 1):
-        generations, next_batch = default_santacoder.generate_token(next_batch)
+        generations, next_batch, _ = default_santacoder.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_santacoder.generate_token(next_batch)
+    generations, next_batch, _ = default_santacoder.generate_token(next_batch)
     assert next_batch is None
 
     assert len(generations) == 1
-    assert generations[0].generated_text.text == "def test_get_all_users_with_"
+    assert generations[0].generated_text.text == " test_get_all_users_with_"
     assert generations[0].request_id == batch.requests[0].id
     assert (
         generations[0].generated_text.generated_tokens
@@ -70,21 +82,24 @@ def test_fim_santacoder_generate_token_completion(
     default_santacoder, default_fim_pb_batch
 ):
     batch = CausalLMBatch.from_pb(
-        default_fim_pb_batch, default_santacoder.tokenizer, default_santacoder.device
+        default_fim_pb_batch,
+        default_santacoder.tokenizer,
+        default_santacoder.dtype,
+        default_santacoder.device,
     )
     next_batch = batch
 
     for _ in range(batch.stopping_criterias[0].max_new_tokens - 1):
-        generations, next_batch = default_santacoder.generate_token(next_batch)
+        generations, next_batch, _ = default_santacoder.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_santacoder.generate_token(next_batch)
+    generations, next_batch, _ = default_santacoder.generate_token(next_batch)
     assert next_batch is None
 
     assert len(generations) == 1
     assert (
         generations[0].generated_text.text
-        == """<fim-prefix>def<fim-suffix>world<fim-middle>ineProperty(exports, "__esModule", { value"""
+        == """ineProperty(exports, "__esModule", { value"""
     )
     assert generations[0].request_id == batch.requests[0].id
     assert (
