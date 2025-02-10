@@ -1,7 +1,7 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-text_generation/__pycache__/
-text_generation/pb/__pycache__/
+text_generation_server/__pycache__/
+text_generation_server/pb/__pycache__/
 *.py[cod]
 *$py.class
 
@@ -156,3 +156,9 @@ cython_debug/
 
 transformers
 safetensors
+flash-attention/
+flash-attention-v2/
+vllm/
+llm-awq/
+eetq/
+mamba/

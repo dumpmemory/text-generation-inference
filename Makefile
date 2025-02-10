@@ -1,31 +1,55 @@
 install-server:
 	cd server && make install
 
+install-server-cpu:
+	cd server && make install-server
+
 install-router:
-	cd router && cargo install --path .
+	cargo install --path backends/v3/
 
 install-launcher:
-	cd launcher && cargo install --path .
+	cargo install --path launcher/
+
+install-benchmark:
+	cargo install --path benchmark/
 
 install: install-server install-router install-launcher
+
+
+install-cpu: install-server-cpu install-router install-launcher
 
 server-dev:
 	cd server && make run-dev
 
 router-dev:
-	cd router && cargo run
+	cd router && cargo run -- --port 8080
 
-run-bloom-560m:
-	text-generation-launcher --model-name bigscience/bloom-560m --num-shard 2
+rust-tests: install-router install-launcher
+	cargo test
 
-run-bloom-560m-quantize:
-	text-generation-launcher --model-name bigscience/bloom-560m --num-shard 2 --quantize
+install-integration-tests:
+	cd integration-tests && pip install -r requirements.txt
+	cd clients/python && pip install .
 
-download-bloom:
-	text-generation-server download-weights bigscience/bloom
+integration-tests: install-integration-tests
+	pytest -s -vv -m "not private" integration-tests
 
-run-bloom:
-	text-generation-launcher --model-name bigscience/bloom --num-shard 8
+update-integration-tests: install-integration-tests
+	pytest -s -vv --snapshot-update integration-tests
 
-run-bloom-quantize:
-	text-generation-launcher --model-name bigscience/bloom --num-shard 8 --quantize
+python-server-tests:
+	HF_HUB_ENABLE_HF_TRANSFER=1 pytest -s -vv -m "not private" server/tests
+
+python-client-tests:
+	pytest clients/python/tests
+
+python-tests: python-server-tests python-client-tests
+
+run-falcon-7b-instruct:
+	text-generation-launcher --model-id tiiuae/falcon-7b-instruct --port 8080
+
+run-falcon-7b-instruct-quantize:
+	text-generation-launcher --model-id tiiuae/falcon-7b-instruct --quantize bitsandbytes --port 8080
+
+clean:
+	rm -rf target aml
